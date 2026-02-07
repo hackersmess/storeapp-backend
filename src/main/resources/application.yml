@@ -1,0 +1,28 @@
+# Database Configuration
+quarkus:
+  datasource:
+    db-kind: postgresql
+    username: postgres
+    password: postgres
+    jdbc:
+      url: jdbc:postgresql://localhost:5432/storeapp
+      max-size: 16
+
+  hibernate-orm:
+    database:
+      generation: validate
+    log:
+      sql: true
+
+  # HTTP Configuration
+  http:
+    port: 8080
+    cors:
+      ~: true
+      origins: http://localhost:4200
+
+  # Logging
+  log:
+    level: INFO
+    category:
+      com.storeapp: DEBUG
