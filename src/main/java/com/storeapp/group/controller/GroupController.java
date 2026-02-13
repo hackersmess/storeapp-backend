@@ -6,9 +6,7 @@ import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.SecurityContext;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import java.util.List;
@@ -112,6 +110,17 @@ public class GroupController {
     @Path("/{id}/members")
     public GroupMemberDto addMember(@PathParam("id") Long id, @Valid AddMemberRequest request) {
         return groupService.addMember(id, request, getCurrentUserId());
+    }
+
+    /**
+     * Aggiunge più membri al gruppo in una singola transazione atomica
+     * POST /api/groups/{id}/members/batch
+     * Se anche solo uno fallisce, nessun membro viene aggiunto (rollback)
+     */
+    @POST
+    @Path("/{id}/members/batch")
+    public List<GroupMemberDto> addMembers(@PathParam("id") Long id, @Valid List<AddMemberRequest> requests) {
+        return groupService.addMembers(id, requests, getCurrentUserId());
     }
 
     /**

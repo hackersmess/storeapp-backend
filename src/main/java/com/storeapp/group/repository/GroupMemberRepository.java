@@ -63,4 +63,11 @@ public class GroupMemberRepository implements PanacheRepository<GroupMember> {
         return count("group.id = ?1 and user.id = ?2 and role = ?3", 
                     groupId, userId, GroupRole.ADMIN) > 0;
     }
+
+    /**
+     * Rimuove un membro tramite query DELETE
+     */
+    public long removeMemberById(Long memberId) {
+        return delete("id", memberId);
+    }
 }

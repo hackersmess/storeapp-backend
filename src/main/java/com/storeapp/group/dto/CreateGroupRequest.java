@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * DTO per la creazione di un nuovo gruppo
@@ -23,4 +24,10 @@ public class CreateGroupRequest {
 
     @Size(max = 500, message = "URL immagine troppo lungo")
     public String coverImageUrl;
+
+    /**
+     * Lista opzionale di membri da aggiungere al gruppo al momento della creazione
+     * Se presente, vengono aggiunti in modo atomico nella stessa transazione
+     */
+    public List<AddMemberRequest> members;
 }

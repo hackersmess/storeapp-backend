@@ -49,29 +49,80 @@ public class GroupService {
     /**
      * Crea un nuovo gruppo
      * Il creatore diventa automaticamente ADMIN del gruppo
+     * Se la richiesta include membri, vengono aggiunti atomicamente nella stessa transazione
+     * TRANSAZIONE ATOMICA: se un membro va in errore, rollback completo (gruppo non creato)
      */
     @Transactional
     public GroupDto createGroup(CreateGroupRequest request, Long userId) {
+        // 1. VALIDAZIONI PRELIMINARI (prima di persistere qualsiasi cosa)
         User creator = userRepository.findById(userId)
             .orElseThrow(() -> new NotFoundException("Utente non trovato"));
 
-        // Usa mapper per creare entity da request
+        // Verifica limite membri PRIMA di iniziare
+        if (request.members != null && request.members.size() + 1 > MAX_MEMBERS_PER_GROUP) {
+            throw new InvalidOperationException(
+                "Impossibile aggiungere " + request.members.size() + " membri. " +
+                "Limite massimo: " + MAX_MEMBERS_PER_GROUP + " (già incluso il creatore)"
+            );
+        }
+
+        // Valida e trova TUTTI gli utenti da aggiungere PRIMA di persistere il gruppo
+        List<User> usersToAdd = new java.util.ArrayList<>();
+        List<GroupRole> rolesToAssign = new java.util.ArrayList<>();
+
+        if (request.members != null && !request.members.isEmpty()) {
+            for (AddMemberRequest memberRequest : request.members) {
+                // Trova l'utente da aggiungere
+                User userToAdd;
+                if (memberRequest.email != null && !memberRequest.email.isBlank()) {
+                    userToAdd = userRepository.findByEmail(memberRequest.email)
+                        .orElseThrow(() -> new NotFoundException("Utente non trovato: " + memberRequest.email));
+                } else if (memberRequest.username != null && !memberRequest.username.isBlank()) {
+                    userToAdd = userRepository.findByName(memberRequest.username)
+                        .orElseThrow(() -> new NotFoundException("Utente non trovato: " + memberRequest.username));
+                } else {
+                    throw new NotFoundException("Email o username richiesti per aggiungere un membro");
+                }
+
+                // Verifica che non sia il creatore (verrà aggiunto automaticamente come ADMIN)
+                if (!userToAdd.getId().equals(userId)) {
+                    // Verifica duplicati nella lista
+                    final Long userToAddId = userToAdd.getId();
+                    if (usersToAdd.stream().anyMatch(u -> u.getId().equals(userToAddId))) {
+                        throw new UserAlreadyMemberException(userToAdd.getEmail());
+                    }
+                    usersToAdd.add(userToAdd);
+                    rolesToAssign.add(memberRequest.role != null ? memberRequest.role : GroupRole.MEMBER);
+                }
+            }
+        }
+
+        // 2. INIZIO PERSISTENZA (tutte le validazioni sono passate)
+        // Crea e persiste il gruppo
         Group group = groupMapper.toEntity(request);
         group.createdBy = creator;
-
-        // Persiste il gruppo
         groupRepository.persist(group);
         groupRepository.flush(); // Forza il flush per ottenere l'ID
 
-        // Aggiungi esplicitamente il creatore come ADMIN
+        // 3. Aggiungi il creatore come ADMIN
         GroupMember creatorMember = new GroupMember();
         creatorMember.group = group;
         creatorMember.user = creator;
         creatorMember.role = GroupRole.ADMIN;
         groupMemberRepository.persist(creatorMember);
+
+        // 4. Aggiungi i membri validati
+        for (int i = 0; i < usersToAdd.size(); i++) {
+            GroupMember member = new GroupMember();
+            member.group = group;
+            member.user = usersToAdd.get(i);
+            member.role = rolesToAssign.get(i);
+            groupMemberRepository.persist(member);
+        }
+
         groupMemberRepository.flush();
 
-        // Ricarica il gruppo con i membri per avere i dati completi
+        // 5. Ricarica il gruppo con i membri per avere i dati completi
         group = groupRepository.findByIdWithMembers(group.id)
             .orElseThrow(() -> new RuntimeException("Errore nel recupero del gruppo creato"));
 
@@ -215,6 +266,70 @@ public class GroupService {
     }
 
     /**
+     * Aggiunge più membri al gruppo in modo atomico (solo ADMIN)
+     * Se anche solo uno fallisce, viene fatto rollback di tutti gli inserimenti
+     */
+    @Transactional
+    public List<GroupMemberDto> addMembers(Long groupId, List<AddMemberRequest> requests, Long userId) {
+        // Validazione gruppo e permessi
+        Group group = groupRepository.findByIdWithMembers(groupId)
+            .orElseThrow(() -> new GroupNotFoundException(groupId));
+
+        // Solo gli admin possono aggiungere membri
+        if (!group.isAdmin(userId)) {
+            throw InsufficientPermissionsException.adminRequired();
+        }
+
+        // Verifica limite membri PRIMA di processare
+        long currentMemberCount = group.getMemberCount();
+        if (currentMemberCount + requests.size() > MAX_MEMBERS_PER_GROUP) {
+            throw new InvalidOperationException(
+                "Impossibile aggiungere " + requests.size() + " membri. " +
+                "Limite massimo: " + MAX_MEMBERS_PER_GROUP + ", attuali: " + currentMemberCount
+            );
+        }
+
+        // Lista per i membri aggiunti
+        List<GroupMember> addedMembers = new java.util.ArrayList<>();
+
+        // Processa ogni richiesta
+        for (AddMemberRequest request : requests) {
+            // Trova l'utente da aggiungere
+            User userToAdd = null;
+            if (request.email != null && !request.email.isBlank()) {
+                userToAdd = userRepository.findByEmail(request.email).orElse(null);
+            } else if (request.username != null && !request.username.isBlank()) {
+                userToAdd = userRepository.findByName(request.username).orElse(null);
+            }
+
+            if (userToAdd == null) {
+                // Rollback automatico grazie a @Transactional
+                throw new NotFoundException("Utente non trovato: " + 
+                    (request.email != null ? request.email : request.username));
+            }
+
+            // Verifica che non sia già membro
+            if (groupMemberRepository.isMember(groupId, userToAdd.getId())) {
+                // Rollback automatico grazie a @Transactional
+                throw new UserAlreadyMemberException(userToAdd.getEmail());
+            }
+
+            // Aggiungi il membro
+            GroupMember member = new GroupMember();
+            member.group = group;
+            member.user = userToAdd;
+            member.role = request.role != null ? request.role : GroupRole.MEMBER;
+            groupMemberRepository.persist(member);
+            addedMembers.add(member);
+        }
+
+        // Converti tutti i membri in DTO
+        return addedMembers.stream()
+            .map(groupMemberMapper::toDto)
+            .toList();
+    }
+
+    /**
      * Rimuove un membro dal gruppo (solo ADMIN)
      */
     @Transactional
@@ -247,7 +362,11 @@ public class GroupService {
             }
         }
 
-        groupMemberRepository.delete(memberToRemove);
+        long deletedCount = groupMemberRepository.removeMemberById(memberId);
+        
+        if (deletedCount == 0) {
+            throw new RuntimeException("Failed to delete member - no rows affected");
+        }
     }
 
     /**
