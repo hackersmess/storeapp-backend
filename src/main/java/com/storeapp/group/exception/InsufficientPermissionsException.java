@@ -18,4 +18,8 @@ public class InsufficientPermissionsException extends BusinessException {
     public static InsufficientPermissionsException creatorRequired() {
         return new InsufficientPermissionsException("Solo il creatore del gruppo può eseguire questa operazione");
     }
+
+    public static InsufficientPermissionsException memberRequired() {
+        return new InsufficientPermissionsException("Devi essere membro del gruppo per eseguire questa operazione");
+    }
 }

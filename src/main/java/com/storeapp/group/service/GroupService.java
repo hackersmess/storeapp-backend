@@ -10,6 +10,7 @@ import com.storeapp.group.mapper.GroupMemberMapper;
 import com.storeapp.group.repository.GroupMemberRepository;
 import com.storeapp.group.repository.GroupRepository;
 import com.storeapp.user.entity.User;
+import com.storeapp.user.mapper.UserMapper;
 import com.storeapp.user.repository.UserRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -40,11 +41,14 @@ public class GroupService {
     @Inject
     GroupMemberMapper groupMemberMapper;
 
+    @Inject
+    UserMapper userMapper;
+
     private static final int MAX_MEMBERS_PER_GROUP = 50;
 
     /**
      * Crea un nuovo gruppo
-     * Il creatore diventa automaticamente ADMIN grazie al trigger DB
+     * Il creatore diventa automaticamente ADMIN del gruppo
      */
     @Transactional
     public GroupDto createGroup(CreateGroupRequest request, Long userId) {
@@ -55,12 +59,19 @@ public class GroupService {
         Group group = groupMapper.toEntity(request);
         group.createdBy = creator;
 
+        // Persiste il gruppo
         groupRepository.persist(group);
-        groupRepository.flush(); // Forza l'esecuzione del trigger DB
-        groupRepository.getEntityManager().clear(); // Pulisce la cache per forzare il reload
+        groupRepository.flush(); // Forza il flush per ottenere l'ID
 
-        // Il trigger DB aggiungerà automaticamente il creatore come ADMIN
-        // Ricarichiamo il gruppo con i membri per avere i dati aggiornati
+        // Aggiungi esplicitamente il creatore come ADMIN
+        GroupMember creatorMember = new GroupMember();
+        creatorMember.group = group;
+        creatorMember.user = creator;
+        creatorMember.role = GroupRole.ADMIN;
+        groupMemberRepository.persist(creatorMember);
+        groupMemberRepository.flush();
+
+        // Ricarica il gruppo con i membri per avere i dati completi
         group = groupRepository.findByIdWithMembers(group.id)
             .orElseThrow(() -> new RuntimeException("Errore nel recupero del gruppo creato"));
 
@@ -128,6 +139,34 @@ public class GroupService {
         }
 
         groupRepository.delete(group);
+    }
+
+    /**
+     * Ottiene la lista di utenti disponibili da aggiungere al gruppo
+     * Esclude gli utenti già membri del gruppo
+     */
+    public List<com.storeapp.user.dto.UserResponse> getAvailableUsers(Long groupId, Long userId) {
+        Group group = groupRepository.findByIdWithMembers(groupId)
+            .orElseThrow(() -> new GroupNotFoundException(groupId));
+
+        // Verifica che l'utente sia almeno membro del gruppo
+        if (!group.isMember(userId)) {
+            throw InsufficientPermissionsException.memberRequired();
+        }
+
+        // Ottieni tutti gli utenti
+        List<User> allUsers = userRepository.findAll();
+
+        // Ottieni gli ID dei membri attuali del gruppo
+        List<Long> memberIds = group.members.stream()
+            .map(m -> m.user.getId())
+            .toList();
+
+        // Filtra gli utenti che NON sono già membri
+        return allUsers.stream()
+            .filter(user -> !memberIds.contains(user.getId()))
+            .map(userMapper::toUserResponse)
+            .toList();
     }
 
     /**

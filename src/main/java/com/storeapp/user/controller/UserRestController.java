@@ -4,6 +4,7 @@ import com.storeapp.user.dto.CreateUserRequest;
 import com.storeapp.user.dto.UpdateUserRequest;
 import com.storeapp.user.dto.UserResponse;
 import com.storeapp.user.service.UserBusinessService;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
@@ -19,6 +20,7 @@ import java.util.List;
 @Path("/api/users")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
+@RolesAllowed("USER")
 public class UserRestController {
 
     @Inject
@@ -92,5 +94,27 @@ public class UserRestController {
     @Path("/count")
     public long count() {
         return userBusinessService.count();
+    }
+
+    /**
+     * GET /api/users/search?q={query}
+     * Cerca utenti per username o email.
+     */
+    @GET
+    @Path("/search")
+    public List<UserResponse> search(@QueryParam("q") String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return List.of();
+        }
+
+        List<UserResponse> allUsers = userBusinessService.findAll();
+        String lowerQuery = query.toLowerCase();
+
+        return allUsers.stream()
+                .filter(user ->
+                        user.email.toLowerCase().contains(lowerQuery) ||
+                                user.name.toLowerCase().contains(lowerQuery)
+                )
+                .toList();
     }
 }

@@ -94,6 +94,17 @@ public class GroupController {
     }
 
     /**
+     * Ottiene la lista di utenti disponibili da aggiungere al gruppo
+     * (esclude gli utenti già membri)
+     * GET /api/groups/{id}/available-users
+     */
+    @GET
+    @Path("/{id}/available-users")
+    public List<com.storeapp.user.dto.UserResponse> getAvailableUsers(@PathParam("id") Long groupId) {
+        return groupService.getAvailableUsers(groupId, getCurrentUserId());
+    }
+
+    /**
      * Aggiunge un membro al gruppo
      * POST /api/groups/{id}/members
      */
