@@ -370,12 +370,49 @@ public class GroupService {
     }
 
     /**
+     * Verifica lo stato prima di abbandonare un gruppo
+     */
+    public LeaveGroupStatusDto checkLeaveGroupStatus(Long groupId, Long userId) {
+        GroupMember membership = groupMemberRepository.findByGroupAndUser(groupId, userId)
+            .orElseThrow(() -> new NotFoundException("Non sei membro di questo gruppo"));
+
+        // Conta il numero totale di membri e admin
+        long memberCount = groupMemberRepository.countByGroup(groupId);
+        long adminCount = groupMemberRepository.countAdminsByGroup(groupId);
+
+        // Se sei l'unico membro, il gruppo verrà eliminato
+        if (memberCount == 1) {
+            return LeaveGroupStatusDto.willDeleteGroup(memberCount);
+        }
+
+        // Se sei admin e l'ultimo admin, non puoi uscire
+        if (membership.role == GroupRole.ADMIN && adminCount <= 1) {
+            return LeaveGroupStatusDto.lastAdmin(memberCount, adminCount);
+        }
+
+        // Altrimenti puoi uscire normalmente
+        return LeaveGroupStatusDto.canLeave();
+    }
+
+    /**
      * Abbandona un gruppo (self-remove)
      */
     @Transactional
     public void leaveGroup(Long groupId, Long userId) {
         GroupMember membership = groupMemberRepository.findByGroupAndUser(groupId, userId)
             .orElseThrow(() -> new NotFoundException("Non sei membro di questo gruppo"));
+
+        // Conta il numero totale di membri
+        long memberCount = groupMemberRepository.countByGroup(groupId);
+
+        // Se sei l'unico membro, elimina il gruppo
+        if (memberCount == 1) {
+            Group group = groupRepository.findById(groupId);
+            if (group != null) {
+                groupRepository.delete(group);
+            }
+            return;
+        }
 
         // Se sei admin, verifica che non sei l'ultimo
         if (membership.role == GroupRole.ADMIN) {

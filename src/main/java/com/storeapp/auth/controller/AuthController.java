@@ -41,11 +41,27 @@ public class AuthController {
             return Response.status(Response.Status.CREATED).entity(response).build();
         } catch (UserAlreadyExistsException e) {
             return Response.status(Response.Status.CONFLICT)
-                .entity(Map.of("error", e.getMessage()))
+                .entity(Map.of(
+                    "error", "Email già registrata",
+                    "message", e.getMessage()
+                ))
+                .build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                .entity(Map.of(
+                    "error", "Dati non validi",
+                    "message", e.getMessage()
+                ))
                 .build();
         } catch (Exception e) {
+            // Log dell'errore (dovrebbe usare un logger in produzione)
+            System.err.println("Registration error: " + e.getMessage());
+            e.printStackTrace();
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                .entity(Map.of("error", "Registration failed"))
+                .entity(Map.of(
+                    "error", "Errore del server",
+                    "message", "Si è verificato un errore durante la registrazione"
+                ))
                 .build();
         }
     }
@@ -65,11 +81,27 @@ public class AuthController {
             return Response.ok(response).build();
         } catch (InvalidCredentialsException e) {
             return Response.status(Response.Status.UNAUTHORIZED)
-                .entity(Map.of("error", e.getMessage()))
+                .entity(Map.of(
+                    "error", "Credenziali non valide",
+                    "message", e.getMessage()
+                ))
+                .build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                .entity(Map.of(
+                    "error", "Dati non validi",
+                    "message", e.getMessage()
+                ))
                 .build();
         } catch (Exception e) {
+            // Log dell'errore (dovrebbe usare un logger in produzione)
+            System.err.println("Login error: " + e.getMessage());
+            e.printStackTrace();
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                .entity(Map.of("error", "Login failed"))
+                .entity(Map.of(
+                    "error", "Errore del server",
+                    "message", "Si è verificato un errore durante il login"
+                ))
                 .build();
         }
     }
@@ -89,11 +121,20 @@ public class AuthController {
             return Response.ok(response).build();
         } catch (InvalidCredentialsException e) {
             return Response.status(Response.Status.UNAUTHORIZED)
-                .entity(Map.of("error", "Invalid refresh token"))
+                .entity(Map.of(
+                    "error", "Token non valido",
+                    "message", "Il refresh token non è valido o è scaduto"
+                ))
                 .build();
         } catch (Exception e) {
+            // Log dell'errore (dovrebbe usare un logger in produzione)
+            System.err.println("Token refresh error: " + e.getMessage());
+            e.printStackTrace();
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                .entity(Map.of("error", "Token refresh failed"))
+                .entity(Map.of(
+                    "error", "Errore del server",
+                    "message", "Si è verificato un errore durante il refresh del token"
+                ))
                 .build();
         }
     }

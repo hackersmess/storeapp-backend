@@ -134,6 +134,16 @@ public class GroupController {
     }
 
     /**
+     * Verifica lo stato prima di abbandonare un gruppo
+     * GET /api/groups/{id}/leave/status
+     */
+    @GET
+    @Path("/{id}/leave/status")
+    public LeaveGroupStatusDto checkLeaveGroupStatus(@PathParam("id") Long id) {
+        return groupService.checkLeaveGroupStatus(id, getCurrentUserId());
+    }
+
+    /**
      * Abbandona un gruppo
      * POST /api/groups/{id}/leave
      */
