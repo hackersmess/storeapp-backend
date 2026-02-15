@@ -1,6 +1,7 @@
 package com.storeapp.group.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
@@ -18,8 +19,10 @@ public class CreateGroupRequest {
     @Size(max = 2000, message = "La descrizione non può superare 2000 caratteri")
     public String description;
 
+    @NotNull(message = "La data di inizio vacanza è obbligatoria")
     public LocalDate vacationStartDate;
 
+    @NotNull(message = "La data di fine vacanza è obbligatoria")
     public LocalDate vacationEndDate;
 
     @Size(max = 500, message = "URL immagine troppo lungo")

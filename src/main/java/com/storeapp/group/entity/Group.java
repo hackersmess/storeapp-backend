@@ -31,10 +31,12 @@ public class Group extends PanacheEntityBase {
     @Column(columnDefinition = "TEXT")
     public String description;
 
-    @Column(name = "vacation_start_date")
+    @NotNull(message = "La data di inizio vacanza è obbligatoria")
+    @Column(name = "vacation_start_date", nullable = false)
     public LocalDate vacationStartDate;
 
-    @Column(name = "vacation_end_date")
+    @NotNull(message = "La data di fine vacanza è obbligatoria")
+    @Column(name = "vacation_end_date", nullable = false)
     public LocalDate vacationEndDate;
 
     @Size(max = 500)
