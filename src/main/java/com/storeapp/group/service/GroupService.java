@@ -195,8 +195,13 @@ public class GroupService {
     /**
      * Ottiene la lista di utenti disponibili da aggiungere al gruppo
      * Esclude gli utenti già membri del gruppo
+     * 
+     * @param groupId ID del gruppo
+     * @param userId ID dell'utente che richiede la lista
+     * @param searchQuery Query di ricerca opzionale (cerca in email e nome, case-insensitive)
+     * @return Lista di utenti disponibili, filtrati per la query se presente
      */
-    public List<com.storeapp.user.dto.UserResponse> getAvailableUsers(Long groupId, Long userId) {
+    public List<com.storeapp.user.dto.UserResponse> getAvailableUsers(Long groupId, Long userId, String searchQuery) {
         Group group = groupRepository.findByIdWithMembers(groupId)
             .orElseThrow(() -> new GroupNotFoundException(groupId));
 
@@ -205,17 +210,22 @@ public class GroupService {
             throw InsufficientPermissionsException.memberRequired();
         }
 
-        // Ottieni tutti gli utenti
-        List<User> allUsers = userRepository.findAll();
-
-        // Ottieni gli ID dei membri attuali del gruppo
+        // Ottieni gli ID dei membri attuali del gruppo da escludere
         List<Long> memberIds = group.members.stream()
             .map(m -> m.user.getId())
             .toList();
 
-        // Filtra gli utenti che NON sono già membri
-        return allUsers.stream()
-            .filter(user -> !memberIds.contains(user.getId()))
+        // 🚀 Query ottimizzata: tutto a livello database!
+        List<User> availableUsers;
+        if (searchQuery != null && !searchQuery.trim().isEmpty()) {
+            // Cerca utenti per nome/email ESCLUDENDO i membri (una sola query)
+            availableUsers = userRepository.searchUsersExcluding(searchQuery.trim(), memberIds);
+        } else {
+            // Senza ricerca, restituisce tutti gli utenti NON membri (una sola query)
+            availableUsers = userRepository.findAllExcluding(memberIds);
+        }
+
+        return availableUsers.stream()
             .map(userMapper::toUserResponse)
             .toList();
     }

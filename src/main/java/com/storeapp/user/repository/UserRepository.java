@@ -71,6 +71,49 @@ public class UserRepository {
     }
 
     /**
+     * Cerca utenti per nome o email (case-insensitive), escludendo certi ID.
+     * Query ottimizzata: filtra tutto a livello database.
+     * 
+     * @param searchQuery Query di ricerca (cerca in email e nome)
+     * @param excludeIds Lista di ID utenti da escludere (es. membri già presenti)
+     * @return Lista di utenti che corrispondono alla ricerca
+     */
+    public List<User> searchUsersExcluding(String searchQuery, List<Long> excludeIds) {
+        String jpql = "SELECT u FROM User u WHERE " +
+                      "LOWER(u.email) LIKE LOWER(:search) OR LOWER(u.name) LIKE LOWER(:search)";
+        
+        // Se ci sono ID da escludere, aggiungi la condizione
+        if (excludeIds != null && !excludeIds.isEmpty()) {
+            jpql += " AND u.id NOT IN :excludeIds";
+        }
+        
+        var query = em.createQuery(jpql, User.class)
+                     .setParameter("search", "%" + searchQuery + "%");
+        
+        if (excludeIds != null && !excludeIds.isEmpty()) {
+            query.setParameter("excludeIds", excludeIds);
+        }
+        
+        return query.getResultList();
+    }
+
+    /**
+     * Trova utenti non presenti in una lista di ID.
+     * 
+     * @param excludeIds Lista di ID utenti da escludere
+     * @return Lista di utenti non presenti nella lista di esclusione
+     */
+    public List<User> findAllExcluding(List<Long> excludeIds) {
+        if (excludeIds == null || excludeIds.isEmpty()) {
+            return findAll();
+        }
+        
+        return em.createQuery("SELECT u FROM User u WHERE u.id NOT IN :excludeIds", User.class)
+                 .setParameter("excludeIds", excludeIds)
+                 .getResultList();
+    }
+
+    /**
      * Conta il numero totale di utenti.
      */
     public long count() {

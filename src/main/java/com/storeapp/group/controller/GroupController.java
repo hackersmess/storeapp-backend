@@ -94,12 +94,17 @@ public class GroupController {
     /**
      * Ottiene la lista di utenti disponibili da aggiungere al gruppo
      * (esclude gli utenti già membri)
-     * GET /api/groups/{id}/available-users
+     * GET /api/groups/{id}/available-users?search={query}
+     * 
+     * @param groupId ID del gruppo
+     * @param search Query di ricerca opzionale (cerca in email e nome)
      */
     @GET
     @Path("/{id}/available-users")
-    public List<com.storeapp.user.dto.UserResponse> getAvailableUsers(@PathParam("id") Long groupId) {
-        return groupService.getAvailableUsers(groupId, getCurrentUserId());
+    public List<com.storeapp.user.dto.UserResponse> getAvailableUsers(
+            @PathParam("id") Long groupId,
+            @QueryParam("search") String search) {
+        return groupService.getAvailableUsers(groupId, getCurrentUserId(), search);
     }
 
     /**
