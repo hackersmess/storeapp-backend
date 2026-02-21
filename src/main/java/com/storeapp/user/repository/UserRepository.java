@@ -80,7 +80,7 @@ public class UserRepository {
      */
     public List<User> searchUsersExcluding(String searchQuery, List<Long> excludeIds) {
         String jpql = "SELECT u FROM User u WHERE " +
-                      "LOWER(u.email) LIKE LOWER(:search) OR LOWER(u.name) LIKE LOWER(:search)";
+                      "(LOWER(u.email) LIKE LOWER(:search) OR LOWER(u.name) LIKE LOWER(:search))";
         
         // Se ci sono ID da escludere, aggiungi la condizione
         if (excludeIds != null && !excludeIds.isEmpty()) {
