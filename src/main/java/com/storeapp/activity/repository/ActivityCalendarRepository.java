@@ -21,29 +21,33 @@ public class ActivityCalendarRepository {
     EntityManager entityManager;
 
     /**
-     * Get calendar view for a date range
+     * Get calendar view for a date range (filtered by user participation)
      */
     @SuppressWarnings("unchecked")
-    public List<ActivityCalendarDto> findByGroupAndDateRange(Long groupId, LocalDate startDate, LocalDate endDate) {
+    public List<ActivityCalendarDto> findByGroupAndDateRange(Long groupId, LocalDate startDate, LocalDate endDate, Long userId) {
         String sql = """
-            SELECT 
-                id, group_id, title, description,
-                start_time, end_time,
-                day_of_week, activity_date,
-                location_name, location_lat, location_lng,
-                is_completed, calendar_status,
-                confirmed_count, maybe_count, declined_count, total_members,
-                creator_name, creator_avatar
-            FROM activity_calendar
-            WHERE group_id = :groupId
-            AND activity_date BETWEEN :startDate AND :endDate
-            ORDER BY activity_date, start_time
+            SELECT DISTINCT
+                ac.id, ac.group_id, ac.title, ac.description,
+                ac.start_time, ac.end_time,
+                ac.day_of_week, ac.activity_date,
+                ac.location_name, ac.location_lat, ac.location_lng,
+                ac.is_completed, ac.calendar_status,
+                ac.confirmed_count, ac.maybe_count, ac.declined_count, ac.total_members,
+                ac.creator_name, ac.creator_avatar
+            FROM activity_calendar ac
+            INNER JOIN activity_participants ap ON ac.id = ap.activity_id
+            INNER JOIN group_members gm ON ap.group_member_id = gm.id
+            WHERE ac.group_id = :groupId
+            AND ac.activity_date BETWEEN :startDate AND :endDate
+            AND gm.user_id = :userId
+            ORDER BY ac.activity_date, ac.start_time
         """;
 
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("groupId", groupId);
         query.setParameter("startDate", startDate);
         query.setParameter("endDate", endDate);
+        query.setParameter("userId", userId);
 
         List<Object[]> results = query.getResultList();
 
@@ -53,26 +57,30 @@ public class ActivityCalendarRepository {
     }
 
     /**
-     * Get all activities for a group (no date filtering)
+     * Get all activities for a group (no date filtering, filtered by user participation)
      */
     @SuppressWarnings("unchecked")
-    public List<ActivityCalendarDto> findByGroup(Long groupId) {
+    public List<ActivityCalendarDto> findByGroup(Long groupId, Long userId) {
         String sql = """
-            SELECT 
-                id, group_id, title, description,
-                start_time, end_time,
-                day_of_week, activity_date,
-                location_name, location_lat, location_lng,
-                is_completed, calendar_status,
-                confirmed_count, maybe_count, declined_count, total_members,
-                creator_name, creator_avatar
-            FROM activity_calendar
-            WHERE group_id = :groupId
-            ORDER BY activity_date, start_time
+            SELECT DISTINCT
+                ac.id, ac.group_id, ac.title, ac.description,
+                ac.start_time, ac.end_time,
+                ac.day_of_week, ac.activity_date,
+                ac.location_name, ac.location_lat, ac.location_lng,
+                ac.is_completed, ac.calendar_status,
+                ac.confirmed_count, ac.maybe_count, ac.declined_count, ac.total_members,
+                ac.creator_name, ac.creator_avatar
+            FROM activity_calendar ac
+            INNER JOIN activity_participants ap ON ac.id = ap.activity_id
+            INNER JOIN group_members gm ON ap.group_member_id = gm.id
+            WHERE ac.group_id = :groupId
+            AND gm.user_id = :userId
+            ORDER BY ac.activity_date, ac.start_time
         """;
 
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("groupId", groupId);
+        query.setParameter("userId", userId);
 
         List<Object[]> results = query.getResultList();
 
@@ -97,11 +105,11 @@ public class ActivityCalendarRepository {
         dto.start = row[i++] != null ? ((java.sql.Time) row[i-1]).toLocalTime().atDate(LocalDate.now()) : null;
         dto.end = row[i++] != null ? ((java.sql.Time) row[i-1]).toLocalTime().atDate(LocalDate.now()) : null;
         
-        // day_of_week is String in the view
-        String dayOfWeekStr = (String) row[i++];
-        if (dayOfWeekStr != null) {
-            dayOfWeekStr = dayOfWeekStr.trim().toUpperCase();
-            dto.dayOfWeek = DayOfWeek.valueOf(dayOfWeekStr);
+        // day_of_week is a number (1-7) from EXTRACT(ISODOW)
+        Object dayOfWeekObj = row[i++];
+        if (dayOfWeekObj != null) {
+            int dayOfWeekNum = ((Number) dayOfWeekObj).intValue();
+            dto.dayOfWeek = DayOfWeek.of(dayOfWeekNum);
         }
         
         dto.activityDate = row[i++] != null ? ((java.sql.Date) row[i-1]).toLocalDate() : null;

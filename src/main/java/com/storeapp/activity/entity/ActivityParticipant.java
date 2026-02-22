@@ -37,6 +37,10 @@ public class ActivityParticipant extends PanacheEntityBase {
     @Column(nullable = false, length = 20)
     public ParticipantStatus status = ParticipantStatus.CONFIRMED;
 
+    @NotNull
+    @Column(name = "balance", precision = 10, scale = 2, nullable = false)
+    public java.math.BigDecimal balance = java.math.BigDecimal.ZERO;
+
     @Column(columnDefinition = "TEXT")
     public String notes;
 

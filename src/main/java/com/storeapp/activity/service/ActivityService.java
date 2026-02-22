@@ -53,8 +53,17 @@ public class ActivityService {
     @Inject
     ActivityExpenseSplitMapper expenseSplitMapper;
 
+    @Inject
+    EventMapper eventMapper;
+
+    @Inject
+    TripMapper tripMapper;
+
+    /**
+     * Create an Event activity
+     */
     @Transactional
-    public ActivityDto createActivity(Long groupId, ActivityRequest request, Long userId) {
+    public EventDto createEvent(Long groupId, EventRequest request, Long userId) {
         Group group = groupRepository.findByIdWithMembers(groupId)
                 .orElseThrow(() -> new RuntimeException("Group not found: " + groupId));
 
@@ -62,11 +71,51 @@ public class ActivityService {
             throw new RuntimeException("User is not a member of this group");
         }
 
-        Activity activity = activityMapper.toEntity(request);
-        activity.group = group;
-        activityRepository.persist(activity);
+        Event event = eventMapper.toEntity(request);
+        event.group = group;
+        activityRepository.persist(event);
+        
+        // Add participants if provided
+        if (request.participantIds != null && !request.participantIds.isEmpty()) {
+            addParticipantsToActivity(event, request.participantIds, group);
+        }
+        
+        return eventMapper.toDto(event);
+    }
 
-        return activityMapper.toDto(activity);
+    /**
+     * Create a Trip activity
+     */
+    @Transactional
+    public TripDto createTrip(Long groupId, TripRequest request, Long userId) {
+        Group group = groupRepository.findByIdWithMembers(groupId)
+                .orElseThrow(() -> new RuntimeException("Group not found: " + groupId));
+
+        if (!group.isMember(userId)) {
+            throw new RuntimeException("User is not a member of this group");
+        }
+
+        Trip trip = tripMapper.toEntity(request);
+        trip.group = group;
+        activityRepository.persist(trip);
+        
+        // Add participants if provided
+        if (request.participantIds != null && !request.participantIds.isEmpty()) {
+            addParticipantsToActivity(trip, request.participantIds, group);
+        }
+        
+        return tripMapper.toDto(trip);
+    }
+
+    /**
+     * @deprecated Use createEvent() or createTrip() instead
+     */
+    @Deprecated
+    @Transactional
+    public ActivityDto createActivity(Long groupId, ActivityRequest request, Long userId) {
+        throw new UnsupportedOperationException(
+            "This method is deprecated. Use createEvent() or createTrip() instead."
+        );
     }
 
     public ActivityDto getActivity(Long activityId, Long userId) {
@@ -109,6 +158,85 @@ public class ActivityService {
         return activityMapper.toDtoList(activities);
     }
 
+    /**
+     * Update an Event activity
+     */
+    @Transactional
+    public EventDto updateEvent(Long activityId, EventRequest request, Long userId) {
+        Activity activity = activityRepository.findByIdOptional(activityId)
+                .orElseThrow(() -> new ActivityNotFoundException(activityId));
+
+        if (!activity.group.isMember(userId)) {
+            throw new RuntimeException("User is not a member of this group");
+        }
+
+        if (!(activity instanceof Event event)) {
+            throw new IllegalArgumentException("Activity " + activityId + " is not an Event");
+        }
+
+        // Update Event-specific fields using mapper
+        Event updatedEvent = eventMapper.toEntity(request);
+        
+        // Copy fields (excluding id and group)
+        event.name = updatedEvent.name;
+        event.description = updatedEvent.description;
+        event.startDate = updatedEvent.startDate;
+        event.endDate = updatedEvent.endDate;
+        event.startTime = updatedEvent.startTime;
+        event.endTime = updatedEvent.endTime;
+        event.location = updatedEvent.location;
+        event.category = updatedEvent.category;
+        event.bookingUrl = updatedEvent.bookingUrl;
+        event.bookingReference = updatedEvent.bookingReference;
+        event.reservationTime = updatedEvent.reservationTime;
+        event.isCompleted = updatedEvent.isCompleted;
+        event.displayOrder = updatedEvent.displayOrder;
+        
+        return eventMapper.toDto(event);
+    }
+
+    /**
+     * Update a Trip activity
+     */
+    @Transactional
+    public TripDto updateTrip(Long activityId, TripRequest request, Long userId) {
+        Activity activity = activityRepository.findByIdOptional(activityId)
+                .orElseThrow(() -> new ActivityNotFoundException(activityId));
+
+        if (!activity.group.isMember(userId)) {
+            throw new RuntimeException("User is not a member of this group");
+        }
+
+        if (!(activity instanceof Trip trip)) {
+            throw new IllegalArgumentException("Activity " + activityId + " is not a Trip");
+        }
+
+        // Update Trip-specific fields using mapper
+        Trip updatedTrip = tripMapper.toEntity(request);
+        
+        // Copy fields (excluding id and group)
+        trip.name = updatedTrip.name;
+        trip.description = updatedTrip.description;
+        trip.startDate = updatedTrip.startDate;
+        trip.endDate = updatedTrip.endDate;
+        trip.startTime = updatedTrip.startTime;
+        trip.endTime = updatedTrip.endTime;
+        trip.origin = updatedTrip.origin;
+        trip.destination = updatedTrip.destination;
+        trip.transportMode = updatedTrip.transportMode;
+        trip.departureTime = updatedTrip.departureTime;
+        trip.arrivalTime = updatedTrip.arrivalTime;
+        trip.bookingReference = updatedTrip.bookingReference;
+        trip.isCompleted = updatedTrip.isCompleted;
+        trip.displayOrder = updatedTrip.displayOrder;
+        
+        return tripMapper.toDto(trip);
+    }
+
+    /**
+     * @deprecated Use updateEvent() or updateTrip() instead
+     */
+    @Deprecated
     @Transactional
     public ActivityDto updateActivity(Long activityId, ActivityRequest request, Long userId) {
         Activity activity = activityRepository.findByIdOptional(activityId)
@@ -120,15 +248,9 @@ public class ActivityService {
 
         activity.name = request.name;
         activity.description = request.description;
-        activity.scheduledDate = request.scheduledDate;
+        activity.startDate = request.scheduledDate;
         activity.startTime = request.startTime;
         activity.endTime = request.endTime;
-        activity.locationName = request.locationName;
-        activity.locationAddress = request.locationAddress;
-        activity.locationLat = request.locationLat;
-        activity.locationLng = request.locationLng;
-        activity.locationProvider = request.locationProvider;
-        activity.locationMetadata = request.locationMetadata;
 
         return activityMapper.toDto(activity);
     }
@@ -321,5 +443,36 @@ public class ActivityService {
         }
 
         expenseRepository.delete(expense);
+    }
+
+    /**
+     * Helper method to add participants to an activity
+     */
+    private void addParticipantsToActivity(Activity activity, java.util.List<Long> participantIds, Group group) {
+        if (participantIds == null || participantIds.isEmpty()) {
+            return;
+        }
+
+        for (Long memberId : participantIds) {
+            // Find the GroupMember
+            com.storeapp.group.entity.GroupMember groupMember = group.members.stream()
+                    .filter(m -> m.id.equals(memberId))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "GroupMember " + memberId + " not found in group " + group.id));
+
+            // Create participant
+            com.storeapp.activity.entity.ActivityParticipant participant = 
+                    new com.storeapp.activity.entity.ActivityParticipant();
+            participant.activity = activity;
+            participant.groupMember = groupMember;
+            participant.status = com.storeapp.activity.entity.ParticipantStatus.CONFIRMED;
+            participant.balance = java.math.BigDecimal.ZERO;
+            participant.createdAt = java.time.LocalDateTime.now();
+            participant.updatedAt = java.time.LocalDateTime.now();
+
+            // Add to activity's participants set
+            activity.participants.add(participant);
+        }
     }
 }

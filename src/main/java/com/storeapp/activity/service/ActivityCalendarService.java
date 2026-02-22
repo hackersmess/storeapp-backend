@@ -32,7 +32,7 @@ public class ActivityCalendarService {
         // Verify group exists and user has access
         verifyAccess(groupId, userId);
 
-        return calendarRepository.findByGroupAndDateRange(groupId, startDate, endDate);
+        return calendarRepository.findByGroupAndDateRange(groupId, startDate, endDate, userId);
     }
 
     /**
@@ -45,7 +45,7 @@ public class ActivityCalendarService {
         LocalDate startDate = yearMonth.atDay(1);
         LocalDate endDate = yearMonth.atEndOfMonth();
 
-        return calendarRepository.findByGroupAndDateRange(groupId, startDate, endDate);
+        return calendarRepository.findByGroupAndDateRange(groupId, startDate, endDate, userId);
     }
 
     /**
@@ -55,7 +55,7 @@ public class ActivityCalendarService {
         verifyAccess(groupId, userId);
 
         LocalDate weekEnd = weekStart.plus(6, ChronoUnit.DAYS);
-        return calendarRepository.findByGroupAndDateRange(groupId, weekStart, weekEnd);
+        return calendarRepository.findByGroupAndDateRange(groupId, weekStart, weekEnd, userId);
     }
 
     /**
@@ -64,7 +64,7 @@ public class ActivityCalendarService {
     public List<ActivityCalendarDto> getAllActivitiesCalendar(Long groupId, Long userId) {
         verifyAccess(groupId, userId);
 
-        return calendarRepository.findByGroup(groupId);
+        return calendarRepository.findByGroup(groupId, userId);
     }
 
     /**

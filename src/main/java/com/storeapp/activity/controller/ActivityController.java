@@ -37,21 +37,101 @@ public class ActivityController {
     // ACTIVITY CRUD OPERATIONS
     // =====================================================
 
+    // ─────────────────────────────────────────────────────
+    // TYPE-SPECIFIC ENDPOINTS (RECOMMENDED)
+    // ─────────────────────────────────────────────────────
+
     /**
-     * Create new activity
-     * POST /api/groups/{groupId}/activities
+     * Create new Event activity
+     * POST /api/groups/{groupId}/activities/events
      */
+    @POST
+    @Path("/events")
+    public Response createEvent(
+            @PathParam("groupId") Long groupId,
+            @Valid EventRequest request) {
+        
+        Long userId = getCurrentUserId();
+        EventDto event = activityService.createEvent(groupId, request, userId);
+        
+        return Response.status(Response.Status.CREATED)
+                .entity(event)
+                .build();
+    }
+
+    /**
+     * Create new Trip activity
+     * POST /api/groups/{groupId}/activities/trips
+     */
+    @POST
+    @Path("/trips")
+    public Response createTrip(
+            @PathParam("groupId") Long groupId,
+            @Valid TripRequest request) {
+        
+        Long userId = getCurrentUserId();
+        TripDto trip = activityService.createTrip(groupId, request, userId);
+        
+        return Response.status(Response.Status.CREATED)
+                .entity(trip)
+                .build();
+    }
+
+    /**
+     * Update Event activity
+     * PUT /api/groups/{groupId}/activities/events/{activityId}
+     */
+    @PUT
+    @Path("/events/{activityId}")
+    public Response updateEvent(
+            @PathParam("groupId") Long groupId,
+            @PathParam("activityId") Long activityId,
+            @Valid EventRequest request) {
+        
+        Long userId = getCurrentUserId();
+        EventDto event = activityService.updateEvent(activityId, request, userId);
+        
+        return Response.ok(event).build();
+    }
+
+    /**
+     * Update Trip activity
+     * PUT /api/groups/{groupId}/activities/trips/{activityId}
+     */
+    @PUT
+    @Path("/trips/{activityId}")
+    public Response updateTrip(
+            @PathParam("groupId") Long groupId,
+            @PathParam("activityId") Long activityId,
+            @Valid TripRequest request) {
+        
+        Long userId = getCurrentUserId();
+        TripDto trip = activityService.updateTrip(activityId, request, userId);
+        
+        return Response.ok(trip).build();
+    }
+
+    // ─────────────────────────────────────────────────────
+    // GENERIC ENDPOINTS (DEPRECATED - for backward compatibility)
+    // ─────────────────────────────────────────────────────
+
+    /**
+     * Create new activity (Event or Trip)
+     * POST /api/groups/{groupId}/activities
+     * 
+     * @deprecated Use /events or /trips endpoints instead
+     */
+    @Deprecated
     @POST
     public Response createActivity(
             @PathParam("groupId") Long groupId,
             @Valid ActivityRequest request) {
         
-        Long userId = getCurrentUserId();
-        ActivityDto activity = activityService.createActivity(groupId, request, userId);
-        
-        return Response.status(Response.Status.CREATED)
-                .entity(activity)
-                .build();
+        throw new UnsupportedOperationException(
+            "This endpoint is deprecated. Please use:\n" +
+            "  - POST /api/groups/" + groupId + "/activities/events (for Event)\n" +
+            "  - POST /api/groups/" + groupId + "/activities/trips (for Trip)"
+        );
     }
 
     /**
@@ -99,9 +179,16 @@ public class ActivityController {
     }
 
     /**
-     * Update activity
+     * Update activity (Event or Trip)
      * PUT /api/groups/{groupId}/activities/{activityId}
      */
+    /**
+     * Update activity (Event or Trip)
+     * PUT /api/groups/{groupId}/activities/{activityId}
+     * 
+     * @deprecated Use PUT /events/{id} or PUT /trips/{id} endpoints instead
+     */
+    @Deprecated
     @PUT
     @Path("/{activityId}")
     public Response updateActivity(
@@ -109,10 +196,11 @@ public class ActivityController {
             @PathParam("activityId") Long activityId,
             @Valid ActivityRequest request) {
         
-        Long userId = getCurrentUserId();
-        ActivityDto activity = activityService.updateActivity(activityId, request, userId);
-        
-        return Response.ok(activity).build();
+        throw new UnsupportedOperationException(
+            "This endpoint is deprecated. Please use:\n" +
+            "  - PUT /api/groups/" + groupId + "/activities/events/" + activityId + " (for Event)\n" +
+            "  - PUT /api/groups/" + groupId + "/activities/trips/" + activityId + " (for Trip)"
+        );
     }
 
     /**

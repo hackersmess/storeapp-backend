@@ -1,50 +1,59 @@
 package com.storeapp.activity.dto;
 
-import com.storeapp.activity.entity.LocationProvider;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.Map;
 
 /**
- * DTO per la creazione/aggiornamento di un'attività
+ * Generic Activity Request DTO - DEPRECATED in favor of EventRequest/TripRequest
+ * This is kept for backward compatibility with old API endpoints
+ * 
+ * For new code, use:
+ * - EventRequest for single-location activities
+ * - TripRequest for travel activities
+ * 
+ * The activityType discriminator determines which subtype to create
  */
+@Deprecated
 public class ActivityRequest {
 
     @NotBlank(message = "Il nome è obbligatorio")
-    @Size(max = 200, message = "Il nome non può superare 200 caratteri")
+    @Size(max = 255, message = "Il nome non può superare 255 caratteri")
     public String name;
 
     public String description;
 
-    public LocalDate scheduledDate;
+    @NotNull(message = "La data di inizio è obbligatoria")
+    public LocalDate startDate;
+
+    public LocalDate endDate; // For multi-day activities
 
     public LocalTime startTime;
 
     public LocalTime endTime;
 
-    // Location fields
-    @Size(max = 200, message = "Il nome della location non può superare 200 caratteri")
-    public String locationName;
-
-    @Size(max = 500, message = "L'indirizzo non può superare 500 caratteri")
-    public String locationAddress;
-
-    public BigDecimal locationLat;
-
-    public BigDecimal locationLng;
-
-    @Size(max = 500, message = "Il place ID non può superare 500 caratteri")
-    public String locationPlaceId;
-
-    public LocationProvider locationProvider = LocationProvider.MAPBOX;
-
-    public Map<String, Object> locationMetadata;
+    // Activity type discriminator ('EVENT' or 'TRIP')
+    @NotNull(message = "Il tipo di attività è obbligatorio")
+    public String activityType = "EVENT";
 
     public Boolean isCompleted = false;
 
     public Integer displayOrder = 0;
+
+    public BigDecimal totalCost;
+
+    // DEPRECATED: Use scheduledDate as alias for startDate (backward compatibility)
+    @Deprecated
+    public LocalDate scheduledDate;
+
+    /**
+     * Get effective start date (handles backward compatibility)
+     */
+    public LocalDate getEffectiveStartDate() {
+        return startDate != null ? startDate : scheduledDate;
+    }
 }
