@@ -80,7 +80,7 @@ public class ActivityService {
             addParticipantsToActivity(event, request.participantIds, group);
         }
         
-        return eventMapper.toDto(event);
+        return (EventDto) toTypedDto(event, true);
     }
 
     /**
@@ -104,7 +104,7 @@ public class ActivityService {
             addParticipantsToActivity(trip, request.participantIds, group);
         }
         
-        return tripMapper.toDto(trip);
+        return (TripDto) toTypedDto(trip, true);
     }
 
     /**
@@ -118,6 +118,7 @@ public class ActivityService {
         );
     }
 
+    @SuppressWarnings("deprecation")
     public ActivityDto getActivity(Long activityId, Long userId) {
         Activity activity = activityRepository.findByIdOptional(activityId)
                 .orElseThrow(() -> new ActivityNotFoundException(activityId));
@@ -129,7 +130,12 @@ public class ActivityService {
         return activityMapper.toDto(activity);
     }
 
-    public ActivityDto getActivityWithDetails(Long activityId, Long userId) {
+    /**
+     * Returns EventDto or TripDto (with timezone and all type-specific fields)
+     * depending on the concrete type. Use this instead of getActivity() whenever
+     * type-specific fields (timezone, etc.) are needed.
+     */
+    public Object getTypedActivity(Long activityId, Long userId) {
         Activity activity = activityRepository.findByIdOptional(activityId)
                 .orElseThrow(() -> new ActivityNotFoundException(activityId));
 
@@ -137,16 +143,34 @@ public class ActivityService {
             throw new RuntimeException("User is not a member of this group");
         }
 
-        ActivityDto dto = activityMapper.toDto(activity);
-        List<ActivityParticipant> participants = participantRepository.findByActivityId(activityId);
-        dto.setParticipants(participantMapper.toDtoList(participants));
-        List<ActivityExpense> expenses = expenseRepository.findByActivityId(activityId);
-        dto.setExpenses(expenseMapper.toDtoList(expenses));
-
-        return dto;
+        return toTypedDto(activity, true);
     }
 
-    public List<ActivityDto> getActivitiesByGroup(Long groupId, Long userId) {
+    public Object getActivityWithDetails(Long activityId, Long userId) {
+        Activity activity = activityRepository.findByIdOptional(activityId)
+                .orElseThrow(() -> new ActivityNotFoundException(activityId));
+
+        if (!activity.group.isMember(userId)) {
+            throw new RuntimeException("User is not a member of this group");
+        }
+
+        List<ActivityExpense> expenses = expenseRepository.findByActivityId(activityId);
+
+        if (activity instanceof Event event) {
+            EventDto dto = (EventDto) toTypedDto(event, true);
+            dto.expenses = expenseMapper.toDtoList(expenses);
+            return dto;
+        } else if (activity instanceof Trip trip) {
+            TripDto dto = (TripDto) toTypedDto(trip, true);
+            dto.expenses = expenseMapper.toDtoList(expenses);
+            return dto;
+        }
+
+        // fallback — should never happen
+        return activityMapper.toDto(activity);
+    }
+
+    public List<Object> getActivitiesByGroup(Long groupId, Long userId) {
         Group group = groupRepository.findByIdWithMembers(groupId)
                 .orElseThrow(() -> new RuntimeException("Group not found: " + groupId));
 
@@ -154,8 +178,9 @@ public class ActivityService {
             throw new RuntimeException("User is not a member of this group");
         }
 
-        List<Activity> activities = activityRepository.findByGroupId(groupId);
-        return activityMapper.toDtoList(activities);
+        return activityRepository.findByGroupId(groupId).stream()
+                .map(a -> toTypedDto(a, false))
+                .collect(java.util.stream.Collectors.toList());
     }
 
     /**
@@ -189,6 +214,8 @@ public class ActivityService {
         event.bookingUrl = updatedEvent.bookingUrl;
         event.bookingReference = updatedEvent.bookingReference;
         event.reservationTime = updatedEvent.reservationTime;
+        event.startTimezone = updatedEvent.startTimezone;
+        event.endTimezone = updatedEvent.endTimezone;
         event.isCompleted = updatedEvent.isCompleted;
         event.displayOrder = updatedEvent.displayOrder;
 
@@ -197,7 +224,7 @@ public class ActivityService {
             updateActivityParticipants(event, request.participantIds, event.group);
         }
 
-        return eventMapper.toDto(event);
+        return (EventDto) toTypedDto(event, true);
     }
 
     /**
@@ -230,6 +257,8 @@ public class ActivityService {
         trip.destination = updatedTrip.destination;
         trip.transportMode = updatedTrip.transportMode;
         trip.bookingReference = updatedTrip.bookingReference;
+        trip.startTimezone = updatedTrip.startTimezone;
+        trip.endTimezone = updatedTrip.endTimezone;
         trip.isCompleted = updatedTrip.isCompleted;
         trip.displayOrder = updatedTrip.displayOrder;
 
@@ -238,7 +267,7 @@ public class ActivityService {
             updateActivityParticipants(trip, request.participantIds, trip.group);
         }
 
-        return tripMapper.toDto(trip);
+        return (TripDto) toTypedDto(trip, true);
     }
 
     /**
@@ -276,7 +305,7 @@ public class ActivityService {
     }
 
     @Transactional
-    public ActivityDto toggleActivityCompletion(Long activityId, Long userId) {
+    public Object toggleActivityCompletion(Long activityId, Long userId) {
         Activity activity = activityRepository.findByIdOptional(activityId)
                 .orElseThrow(() -> new ActivityNotFoundException(activityId));
 
@@ -285,7 +314,7 @@ public class ActivityService {
         }
 
         activity.isCompleted = !activity.isCompleted;
-        return activityMapper.toDto(activity);
+        return toTypedDto(activity, false);
     }
 
     @Transactional
@@ -521,5 +550,33 @@ public class ActivityService {
             // Add to activity's participants set
             activity.participants.add(participant);
         }
+    }
+
+    /**
+     * Dispatch pattern: returns EventDto or TripDto based on the concrete entity type.
+     * This is the single place where we decide which typed mapper to use.
+     *
+     * @param activity       the activity entity (must be Event or Trip)
+     * @param withParticipants  if true, loads and attaches the participants list
+     * @return EventDto or TripDto (never the deprecated ActivityDto)
+     */
+    private Object toTypedDto(Activity activity, boolean withParticipants) {
+        if (activity instanceof Event event) {
+            EventDto dto = eventMapper.toDto(event);
+            if (withParticipants) {
+                dto.participants = participantMapper.toDtoList(
+                        participantRepository.findByActivityId(activity.id));
+            }
+            return dto;
+        } else if (activity instanceof Trip trip) {
+            TripDto dto = tripMapper.toDto(trip);
+            if (withParticipants) {
+                dto.participants = participantMapper.toDtoList(
+                        participantRepository.findByActivityId(activity.id));
+            }
+            return dto;
+        }
+        // fallback — should never happen with current schema
+        return activityMapper.toDto(activity);
     }
 }

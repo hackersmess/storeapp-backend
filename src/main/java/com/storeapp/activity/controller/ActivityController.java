@@ -141,13 +141,14 @@ public class ActivityController {
     @GET
     public Response getActivities(@PathParam("groupId") Long groupId) {
         Long userId = getCurrentUserId();
-        List<ActivityDto> activities = activityService.getActivitiesByGroup(groupId, userId);
+        List<Object> activities = activityService.getActivitiesByGroup(groupId, userId);
         
         return Response.ok(activities).build();
     }
 
     /**
-     * Get single activity (basic info)
+     * Get single activity with type-specific fields (timezone, etc.)
+     * Returns EventDto or TripDto depending on the concrete type.
      * GET /api/groups/{groupId}/activities/{activityId}
      */
     @GET
@@ -157,7 +158,7 @@ public class ActivityController {
             @PathParam("activityId") Long activityId) {
         
         Long userId = getCurrentUserId();
-        ActivityDto activity = activityService.getActivity(activityId, userId);
+        Object activity = activityService.getTypedActivity(activityId, userId);
         
         return Response.ok(activity).build();
     }
@@ -173,7 +174,7 @@ public class ActivityController {
             @PathParam("activityId") Long activityId) {
         
         Long userId = getCurrentUserId();
-        ActivityDto activity = activityService.getActivityWithDetails(activityId, userId);
+        Object activity = activityService.getActivityWithDetails(activityId, userId);
         
         return Response.ok(activity).build();
     }
@@ -230,7 +231,7 @@ public class ActivityController {
             @PathParam("activityId") Long activityId) {
         
         Long userId = getCurrentUserId();
-        ActivityDto activity = activityService.toggleActivityCompletion(activityId, userId);
+        Object activity = activityService.toggleActivityCompletion(activityId, userId);
         
         return Response.ok(activity).build();
     }

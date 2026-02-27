@@ -35,6 +35,12 @@ public class TripRequest {
 
     public LocalTime arrivalTime;
 
+    @Size(max = 50, message = "Il fuso orario non può superare 50 caratteri")
+    public String departureTimezone = "Europe/Rome";
+
+    @Size(max = 50, message = "Il fuso orario non può superare 50 caratteri")
+    public String arrivalTimezone = "Europe/Rome";
+
     // Origin location (embedded)
     @Size(max = 500, message = "Il nome dell'origine non può superare 500 caratteri")
     public String originName;

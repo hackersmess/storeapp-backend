@@ -24,6 +24,8 @@ public class EventDto {
     public LocalDate endDate;
     public LocalTime startTime;
     public LocalTime endTime;
+    /** IANA timezone ID of the event location (e.g. "Europe/Rome"). Start and end are always the same for events. */
+    public String timezone;
 
     // Activity type discriminator
     public String activityType = "EVENT";

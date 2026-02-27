@@ -24,6 +24,10 @@ public class TripDto {
     public LocalDate arrivalDate;
     public LocalTime departureTime;
     public LocalTime arrivalTime;
+    /** IANA timezone ID of the departure location (e.g. "Europe/Rome") */
+    public String departureTimezone;
+    /** IANA timezone ID of the arrival location (may differ from departure, e.g. "America/New_York") */
+    public String arrivalTimezone;
 
     // Activity type discriminator
     public String activityType = "TRIP";

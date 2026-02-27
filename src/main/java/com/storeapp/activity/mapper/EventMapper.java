@@ -34,6 +34,7 @@ public class EventMapper {
         dto.endDate = entity.endDate;
         dto.startTime = entity.startTime;
         dto.endTime = entity.endTime;
+        dto.timezone = entity.startTimezone; // for events start and end timezone are always the same
         dto.activityType = "EVENT";
 
         // Location
@@ -86,6 +87,11 @@ public class EventMapper {
         entity.endDate = request.endDate;
         entity.startTime = request.startTime;
         entity.endTime = request.endTime;
+        entity.startTimezone = request.timezone != null ? request.timezone : "Europe/Rome";
+        entity.endTimezone = entity.startTimezone; // for events start and end timezone are always the same
+        // for events the location is the same for start and end
+        entity.startTimezone = request.timezone != null ? request.timezone : "Europe/Rome";
+        entity.endTimezone = entity.startTimezone;
 
         // Location
         if (entity.location == null) {

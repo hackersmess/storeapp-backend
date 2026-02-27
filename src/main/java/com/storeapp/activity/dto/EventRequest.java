@@ -35,6 +35,9 @@ public class EventRequest {
 
     public LocalTime endTime;
 
+    @Size(max = 50, message = "Il fuso orario non può superare 50 caratteri")
+    public String timezone = "Europe/Rome";
+
     // Location (embedded)
     @Size(max = 500, message = "Il nome della location non può superare 500 caratteri")
     public String locationName;

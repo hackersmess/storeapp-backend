@@ -102,7 +102,7 @@ public class Trip extends Activity {
     }
 
     // Semantic aliases for Trip (departure/arrival instead of start/end)
-    // These map to the inherited startDate/endDate/startTime/endTime fields
+    // These map to the inherited startDate/endDate/startTime/endTime/startTimezone/endTimezone fields
     
     public java.time.LocalDate getDepartureDate() { return this.startDate; }
     public void setDepartureDate(java.time.LocalDate d) { this.startDate = d; }
@@ -115,6 +115,12 @@ public class Trip extends Activity {
 
     public java.time.LocalTime getArrivalTime() { return this.endTime; }
     public void setArrivalTime(java.time.LocalTime t) { this.endTime = t; }
+
+    public String getDepartureTimezone() { return this.startTimezone; }
+    public void setDepartureTimezone(String tz) { this.startTimezone = tz; }
+
+    public String getArrivalTimezone() { return this.endTimezone; }
+    public void setArrivalTimezone(String tz) { this.endTimezone = tz; }
 
     @Override
     public String toString() {

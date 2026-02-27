@@ -34,6 +34,8 @@ public class TripMapper {
         dto.arrivalDate = entity.endDate;
         dto.departureTime = entity.startTime;
         dto.arrivalTime = entity.endTime;
+        dto.departureTimezone = entity.startTimezone;
+        dto.arrivalTimezone = entity.endTimezone;
         dto.activityType = "TRIP";
 
         // Locations
@@ -85,6 +87,8 @@ public class TripMapper {
         entity.endDate = request.arrivalDate;
         entity.startTime = request.departureTime;
         entity.endTime = request.arrivalTime;
+        entity.startTimezone = request.departureTimezone != null ? request.departureTimezone : "Europe/Rome";
+        entity.endTimezone = request.arrivalTimezone != null ? request.arrivalTimezone : "Europe/Rome";
 
         // Origin location
         if (entity.origin == null) {

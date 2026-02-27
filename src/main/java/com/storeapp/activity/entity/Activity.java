@@ -9,9 +9,12 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -65,6 +68,23 @@ public abstract class Activity extends PanacheEntityBase {
     @NotNull(message = "L'ora di fine è obbligatoria")
     @Column(name = "end_time", nullable = false)
     public LocalTime endTime;
+
+    /**
+     * IANA timezone ID for the activity start location (e.g. "Europe/Rome", "America/New_York").
+     * Combined with startDate + startTime gives the exact UTC instant for notifications.
+     * Default: Europe/Rome.
+     */
+    @Size(max = 50)
+    @Column(name = "start_timezone", nullable = false, length = 50)
+    public String startTimezone = "Europe/Rome";
+
+    /**
+     * IANA timezone ID for the activity end location.
+     * For Events equals startTimezone. For Trips may differ (e.g. flight across time zones).
+     */
+    @Size(max = 50)
+    @Column(name = "end_timezone", nullable = false, length = 50)
+    public String endTimezone = "Europe/Rome";
 
     // Activity status
     @Column(name = "is_completed")
@@ -173,4 +193,23 @@ public abstract class Activity extends PanacheEntityBase {
      * Get activity type (EVENT or TRIP) - to be implemented by subclasses
      */
     public abstract String getActivityType();
+
+    /**
+     * Returns the exact UTC instant of the activity start.
+     * Useful for scheduling notifications.
+     * Returns null if startDate, startTime or startTimezone are missing.
+     */
+    public Instant getStartInstant() {
+        if (startDate == null || startTime == null || startTimezone == null) return null;
+        return ZonedDateTime.of(startDate, startTime, ZoneId.of(startTimezone)).toInstant();
+    }
+
+    /**
+     * Returns the exact UTC instant of the activity end.
+     * Returns null if endDate, endTime or endTimezone are missing.
+     */
+    public Instant getEndInstant() {
+        if (endDate == null || endTime == null || endTimezone == null) return null;
+        return ZonedDateTime.of(endDate, endTime, ZoneId.of(endTimezone)).toInstant();
+    }
 }
