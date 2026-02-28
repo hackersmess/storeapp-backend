@@ -17,21 +17,21 @@ public class ActivityRepository implements PanacheRepository<Activity> {
      * Trova tutte le attività di un gruppo ordinate per display_order
      */
     public List<Activity> findByGroupId(Long groupId) {
-        return list("group.id = ?1 ORDER BY displayOrder, scheduledDate, startTime", groupId);
+        return list("group.id = ?1 ORDER BY displayOrder, startDate, startTime", groupId);
     }
 
     /**
      * Trova attività per gruppo e data
      */
     public List<Activity> findByGroupIdAndDate(Long groupId, LocalDate date) {
-        return list("group.id = ?1 AND scheduledDate = ?2 ORDER BY startTime", groupId, date);
+        return list("group.id = ?1 AND startDate = ?2 ORDER BY startTime", groupId, date);
     }
 
     /**
      * Trova attività per gruppo e intervallo di date
      */
     public List<Activity> findByGroupIdAndDateRange(Long groupId, LocalDate startDate, LocalDate endDate) {
-        return list("group.id = ?1 AND scheduledDate BETWEEN ?2 AND ?3 ORDER BY scheduledDate, startTime",
+        return list("group.id = ?1 AND startDate BETWEEN ?2 AND ?3 ORDER BY startDate, startTime",
             groupId, startDate, endDate);
     }
 

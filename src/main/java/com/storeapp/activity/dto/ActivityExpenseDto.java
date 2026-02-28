@@ -15,7 +15,8 @@ public class ActivityExpenseDto {
     public Long activityId;
     public String description;
     public BigDecimal amount;
-    public GroupMemberDto paidBy;
+    public String currency;
+    public List<GroupMemberDto> payers;
     public LocalDateTime createdAt;
     public LocalDateTime updatedAt;
     public List<ActivityExpenseSplitDto> splits;

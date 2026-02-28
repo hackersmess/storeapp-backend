@@ -14,6 +14,8 @@ public class ActivityExpenseSplitDto {
     public Long expenseId;
     public GroupMemberDto groupMember;
     public BigDecimal amount;
+    public Boolean isPayer;
+    public BigDecimal paidAmount;
     public Boolean isPaid;
     public LocalDateTime createdAt;
     public LocalDateTime updatedAt;

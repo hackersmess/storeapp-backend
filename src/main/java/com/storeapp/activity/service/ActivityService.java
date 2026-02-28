@@ -415,29 +415,48 @@ public class ActivityService {
             throw new RuntimeException("User is not a member of this group");
         }
 
-        GroupMember payer = groupMemberRepository.findByIdOptional(request.paidByGroupMemberId)
+        // Calcola l'importo totale dalla somma dei paganti
+        BigDecimal totalAmount = request.payers.stream()
+                .map(p -> p.paidAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        if (totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("Total amount must be positive");
+        }
+
+        // Primo pagante come riferimento per paid_by (retrocompatibilità DB)
+        GroupMember primaryPayer = groupMemberRepository.findByIdOptional(request.payers.get(0).groupMemberId)
                 .orElseThrow(() -> new RuntimeException("Payer not found"));
 
-        if (!payer.group.id.equals(activity.group.id)) {
+        if (!primaryPayer.group.id.equals(activity.group.id)) {
             throw new RuntimeException("Payer is not a member of this group");
         }
 
         ActivityExpense expense = new ActivityExpense();
         expense.activity = activity;
         expense.description = request.description;
-        expense.amount = request.amount;
-        expense.paidBy = payer;
+        expense.amount = totalAmount;
+        expense.currency = request.currency != null ? request.currency : "EUR";
+        expense.paidBy = primaryPayer;
 
         expenseRepository.persist(expense);
 
         if (request.splits != null && !request.splits.isEmpty()) {
+            // Valida che la somma degli splits corrisponda al totale
             BigDecimal totalSplits = request.splits.stream()
-                    .map(split -> split.amount)
+                    .map(s -> s.amount)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            if (totalSplits.compareTo(request.amount) != 0) {
+            if (totalSplits.compareTo(totalAmount) != 0) {
                 throw new InvalidExpenseSplitException("Splits must sum to total expense amount");
             }
+
+            // Mappa dei paganti per accesso rapido
+            java.util.Map<Long, BigDecimal> payersMap = request.payers.stream()
+                    .collect(java.util.stream.Collectors.toMap(
+                            p -> p.groupMemberId,
+                            p -> p.paidAmount
+                    ));
 
             for (ActivityExpenseRequest.ExpenseSplitRequest splitRequest : request.splits) {
                 GroupMember member = groupMemberRepository.findByIdOptional(splitRequest.groupMemberId)
@@ -447,10 +466,21 @@ public class ActivityService {
                 split.expense = expense;
                 split.groupMember = member;
                 split.amount = splitRequest.amount;
+                split.isPayer = payersMap.containsKey(splitRequest.groupMemberId);
+                split.paidAmount = split.isPayer
+                        ? payersMap.get(splitRequest.groupMemberId)
+                        : BigDecimal.ZERO;
 
                 expenseSplitRepository.persist(split);
             }
         }
+
+        // Aggiorna totalCost dell'attività
+        BigDecimal newTotal = expenseRepository.getTotalByActivityId(activityId);
+        activity.totalCost = newTotal;
+        activityRepository.persist(activity);
+
+        expenseRepository.getEntityManager().flush();
 
         ActivityExpense savedExpense = expenseRepository.findByIdOptional(expense.id)
                 .orElseThrow(() -> new RuntimeException("Failed to retrieve saved expense"));

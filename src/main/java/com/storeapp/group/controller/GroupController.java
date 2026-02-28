@@ -2,6 +2,8 @@ package com.storeapp.group.controller;
 
 import com.storeapp.group.dto.*;
 import com.storeapp.group.service.GroupService;
+import com.storeapp.activity.dto.GroupExpenseSettlementDto;
+import com.storeapp.activity.service.ExpenseSettlementService;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
@@ -22,6 +24,9 @@ public class GroupController {
 
     @Inject
     GroupService groupService;
+
+    @Inject
+    ExpenseSettlementService settlementService;
 
     @Inject
     JsonWebToken jwt;
@@ -169,5 +174,22 @@ public class GroupController {
             @PathParam("memberId") Long memberId,
             @Valid UpdateMemberRoleRequest request) {
         return groupService.updateMemberRole(groupId, memberId, request, getCurrentUserId());
+    }
+
+    // =====================================================
+    // EXPENSE SETTLEMENT
+    // =====================================================
+
+    /**
+     * Calcola il settlement ottimizzato delle spese del gruppo.
+     * Restituisce i bilanci di ogni membro e le transazioni minime
+     * per saldare tutti i debiti (algoritmo Greedy Debt Simplification).
+     *
+     * GET /api/groups/{id}/expenses/settlement
+     */
+    @GET
+    @Path("/{id}/expenses/settlement")
+    public GroupExpenseSettlementDto getExpenseSettlement(@PathParam("id") Long id) {
+        return settlementService.calculateSettlement(id, getCurrentUserId());
     }
 }

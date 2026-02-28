@@ -37,6 +37,10 @@ public class ActivityExpense extends PanacheEntityBase {
     @Column(nullable = false, precision = 10, scale = 2)
     public BigDecimal amount;
 
+    @Size(max = 3)
+    @Column(length = 3)
+    public String currency = "EUR";
+
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "paid_by", nullable = false)

@@ -36,6 +36,12 @@ public class ActivityExpenseSplit extends PanacheEntityBase {
     @Column(nullable = false, precision = 10, scale = 2)
     public BigDecimal amount;
 
+    @Column(name = "is_payer")
+    public Boolean isPayer = false;
+
+    @Column(name = "paid_amount", precision = 10, scale = 2)
+    public BigDecimal paidAmount = BigDecimal.ZERO;
+
     @Column(name = "is_paid")
     public Boolean isPaid = false;
 

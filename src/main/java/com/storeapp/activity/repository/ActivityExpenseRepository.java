@@ -31,9 +31,11 @@ public class ActivityExpenseRepository implements PanacheRepository<ActivityExpe
      * Calcola il totale delle spese di un'attività
      */
     public BigDecimal getTotalByActivityId(Long activityId) {
-        BigDecimal total = find("SELECT SUM(e.amount) FROM ActivityExpense e WHERE e.activity.id = ?1", activityId)
-            .project(BigDecimal.class)
-            .firstResult();
+        BigDecimal total = (BigDecimal) getEntityManager()
+            .createQuery(
+                "SELECT COALESCE(SUM(e.amount), 0) FROM ActivityExpense e WHERE e.activity.id = :id")
+            .setParameter("id", activityId)
+            .getSingleResult();
         return total != null ? total : BigDecimal.ZERO;
     }
 
