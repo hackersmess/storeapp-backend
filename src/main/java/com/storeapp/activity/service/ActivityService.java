@@ -391,6 +391,12 @@ public class ActivityService {
             throw new RuntimeException("User is not a member of this group");
         }
 
+        long expenseCount = expenseRepository.count("activity.id", participant.activity.id);
+        if (expenseCount > 0) {
+            throw new jakarta.ws.rs.BadRequestException(
+                "Cannot remove participant: activity has " + expenseCount + " expense(s). Remove all expenses first.");
+        }
+
         participantRepository.delete(participant);
     }
 
@@ -519,6 +525,13 @@ public class ActivityService {
      * automaticamente eliminati dal DB al flush della transazione.
      */
     private void updateActivityParticipants(Activity activity, java.util.List<Long> newParticipantIds, Group group) {
+        // Blocca la modifica se l'attività ha già delle spese registrate
+        long expenseCount = expenseRepository.count("activity.id", activity.id);
+        if (expenseCount > 0) {
+            throw new jakarta.ws.rs.BadRequestException(
+                "Cannot modify participants: activity has " + expenseCount + " expense(s). Remove all expenses first.");
+        }
+
         // Rimuovi dalla collection i partecipanti non presenti nella nuova lista
         // (orphanRemoval=true li cancella automaticamente dal DB)
         activity.participants.removeIf(existing ->

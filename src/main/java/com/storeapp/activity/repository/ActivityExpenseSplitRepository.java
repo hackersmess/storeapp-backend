@@ -83,23 +83,37 @@ public class ActivityExpenseSplitRepository implements PanacheRepository<Activit
     }
 
     /**
-     * Conta il numero totale di spese di un gruppo
+     * Conta il numero totale di spese di un gruppo.
+     * Conta solo le spese che hanno almeno una split, per essere coerente
+     * con getBalancesByGroupId (che usa le split come sorgente dati).
      */
     public long countExpensesByGroupId(Long groupId) {
         return (long) getEntityManager().createQuery(
-            "SELECT COUNT(ae) FROM ActivityExpense ae JOIN ae.activity a WHERE a.group.id = :groupId"
+            "SELECT COUNT(DISTINCT ae.id) FROM ActivityExpenseSplit aes " +
+            "JOIN aes.expense ae " +
+            "JOIN ae.activity a " +
+            "WHERE a.group.id = :groupId"
         )
         .setParameter("groupId", groupId)
         .getSingleResult();
     }
 
     /**
-     * Somma totale di tutte le spese di un gruppo
+     * Somma totale di tutte le spese di un gruppo.
+     *
+     * Usa SUM(aes.amount) sulle split — stesso aggregato usato per totalOwed
+     * per ogni membro, quindi la somma dei totalOwed coincide con totalExpenses.
+     * Filtra solo le split non-duplicate sommando una volta per spesa.
+     *
+     * Nota: SUM(ae.amount) su activity_expenses potrebbe divergere se esistono
+     * spese senza split (formato legacy). Questa query è coerente con getBalancesByGroupId.
      */
     public BigDecimal getTotalExpensesByGroupId(Long groupId) {
         BigDecimal result = (BigDecimal) getEntityManager().createQuery(
-            "SELECT COALESCE(SUM(ae.amount), 0) FROM ActivityExpense ae " +
-            "JOIN ae.activity a WHERE a.group.id = :groupId"
+            "SELECT COALESCE(SUM(aes.amount), 0) FROM ActivityExpenseSplit aes " +
+            "JOIN aes.expense ae " +
+            "JOIN ae.activity a " +
+            "WHERE a.group.id = :groupId"
         )
         .setParameter("groupId", groupId)
         .getSingleResult();
