@@ -2,15 +2,28 @@ package com.storeapp.activity.service;
 
 import com.storeapp.activity.dto.GroupExpenseSettlementDto;
 import com.storeapp.activity.dto.MemberBalanceDto;
+import com.storeapp.activity.dto.SettleDebtRequest;
 import com.storeapp.activity.dto.SettlementTransactionDto;
+import com.storeapp.activity.entity.ActivityExpense;
+import com.storeapp.activity.entity.ActivityExpenseSplit;
+import com.storeapp.activity.entity.Event;
+import com.storeapp.activity.entity.EventCategory;
+import com.storeapp.activity.repository.ActivityExpenseRepository;
 import com.storeapp.activity.repository.ActivityExpenseSplitRepository;
+import com.storeapp.activity.repository.ActivityRepository;
 import com.storeapp.activity.repository.MemberBalanceProjection;
+import com.storeapp.group.entity.GroupMember;
+import com.storeapp.group.repository.GroupMemberRepository;
 import com.storeapp.group.repository.GroupRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
+import jakarta.ws.rs.NotFoundException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -29,11 +42,23 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class ExpenseSettlementService {
 
+    /** Nome riservato dell'activity usata per i rimborsi di saldo */
+    private static final String SETTLEMENT_ACTIVITY_NAME = " Rimborsi";
+
     @Inject
     ActivityExpenseSplitRepository splitRepository;
 
     @Inject
     GroupRepository groupRepository;
+
+    @Inject
+    GroupMemberRepository groupMemberRepository;
+
+    @Inject
+    ActivityRepository activityRepository;
+
+    @Inject
+    ActivityExpenseRepository expenseRepository;
 
     public GroupExpenseSettlementDto calculateSettlement(Long groupId, Long userId) {
         // Verifica che il gruppo esista e l'utente ne faccia parte
@@ -140,5 +165,86 @@ public class ExpenseSettlementService {
         }
 
         return transactions;
+    }
+
+    /**
+     * Registra un pagamento di saldo: fromMember paga toMember dell'importo indicato.
+     *
+     * Trova (o crea) una Event di tipo "💸 Rimborsi" nel gruppo e aggiunge
+     * una spesa dove il debitore è l'unico payer e il creditore è l'unico split.
+     * In questo modo il bilancio aggregato si aggiorna automaticamente.
+     */
+    @Transactional
+    public void recordSettlement(Long groupId, SettleDebtRequest request, Long userId) {
+        var group = groupRepository.findByIdOptional(groupId)
+                .orElseThrow(() -> new NotFoundException("Gruppo non trovato"));
+        if (!group.isMember(userId)) {
+            throw new RuntimeException("Non sei membro di questo gruppo");
+        }
+
+        GroupMember fromMember = groupMemberRepository.findByIdOptional(request.fromMemberId)
+                .orElseThrow(() -> new NotFoundException("Membro pagante non trovato"));
+        GroupMember toMember = groupMemberRepository.findByIdOptional(request.toMemberId)
+                .orElseThrow(() -> new NotFoundException("Membro ricevente non trovato"));
+
+        if (!fromMember.group.id.equals(groupId) || !toMember.group.id.equals(groupId)) {
+            throw new RuntimeException("I membri non appartengono a questo gruppo");
+        }
+
+        // Trova o crea l'activity di rimborso del gruppo
+        Event settlementActivity = (Event) activityRepository
+                .find("group.id = ?1 AND name = ?2", groupId, SETTLEMENT_ACTIVITY_NAME)
+                .firstResultOptional()
+                .orElseGet(() -> {
+                    Event ev = new Event();
+                    ev.group = group;
+                    ev.name = SETTLEMENT_ACTIVITY_NAME;
+                    ev.startDate = LocalDate.now();
+                    ev.endDate = LocalDate.now();
+                    LocalTime now = LocalTime.now().withSecond(0).withNano(0);
+                    ev.startTime = now;
+                    ev.endTime = now.plusMinutes(1);
+                    ev.category = EventCategory.OTHER;
+                    ev.isCompleted = false;
+                    ev.displayOrder = Integer.MAX_VALUE;
+                    activityRepository.persist(ev);
+                    return ev;
+                });
+
+        // Crea la spesa: fromMember paga, toMember riceve (split al 100%)
+        String description = request.note != null && !request.note.isBlank()
+                ? request.note
+                : fromMember.user.getName() + " → " + toMember.user.getName();
+
+        ActivityExpense expense = new ActivityExpense();
+        expense.activity = settlementActivity;
+        expense.description = description;
+        expense.amount = request.amount.setScale(2, RoundingMode.HALF_UP);
+        expense.currency = request.currency != null ? request.currency : "EUR";
+        expense.paidBy = fromMember;
+        expenseRepository.persist(expense);
+
+        // Split 1: fromMember paga l'intero importo (payer)
+        ActivityExpenseSplit payerSplit = new ActivityExpenseSplit();
+        payerSplit.expense = expense;
+        payerSplit.groupMember = fromMember;
+        payerSplit.amount = BigDecimal.ZERO;          // non deve nulla
+        payerSplit.isPayer = true;
+        payerSplit.paidAmount = expense.amount;
+        splitRepository.persist(payerSplit);
+
+        // Split 2: toMember "deve" l'importo al fromMember (viene azzerato dal rimborso)
+        ActivityExpenseSplit receiverSplit = new ActivityExpenseSplit();
+        receiverSplit.expense = expense;
+        receiverSplit.groupMember = toMember;
+        receiverSplit.amount = expense.amount;        // deve ricevere questo importo
+        receiverSplit.isPayer = false;
+        receiverSplit.paidAmount = BigDecimal.ZERO;
+        splitRepository.persist(receiverSplit);
+
+        // Aggiorna totalCost dell'activity di rimborsi
+        BigDecimal newTotal = expenseRepository.getTotalByActivityId(settlementActivity.id);
+        settlementActivity.totalCost = newTotal != null ? newTotal : BigDecimal.ZERO;
+        activityRepository.persist(settlementActivity);
     }
 }

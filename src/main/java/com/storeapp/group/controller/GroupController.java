@@ -3,6 +3,7 @@ package com.storeapp.group.controller;
 import com.storeapp.group.dto.*;
 import com.storeapp.group.service.GroupService;
 import com.storeapp.activity.dto.GroupExpenseSettlementDto;
+import com.storeapp.activity.dto.SettleDebtRequest;
 import com.storeapp.activity.service.ExpenseSettlementService;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -191,5 +192,20 @@ public class GroupController {
     @Path("/{id}/expenses/settlement")
     public GroupExpenseSettlementDto getExpenseSettlement(@PathParam("id") Long id) {
         return settlementService.calculateSettlement(id, getCurrentUserId());
+    }
+
+    /**
+     * Registra un pagamento di saldo tra due membri del gruppo.
+     * Aggiunge una spesa nell'activity "💸 Rimborsi" del gruppo.
+     *
+     * POST /api/groups/{id}/expenses/settle
+     */
+    @POST
+    @Path("/{id}/expenses/settle")
+    public jakarta.ws.rs.core.Response recordSettlement(
+            @PathParam("id") Long id,
+            @Valid SettleDebtRequest request) {
+        settlementService.recordSettlement(id, request, getCurrentUserId());
+        return jakarta.ws.rs.core.Response.noContent().build();
     }
 }
