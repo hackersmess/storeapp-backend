@@ -121,6 +121,20 @@ public class UserRepository {
     }
 
     /**
+     * Trova un utente per Google ID.
+     */
+    public Optional<User> findByGoogleId(String googleId) {
+        try {
+            User user = em.createQuery("SELECT u FROM User u WHERE u.googleId = :googleId", User.class)
+                    .setParameter("googleId", googleId)
+                    .getSingleResult();
+            return Optional.of(user);
+        } catch (NoResultException e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
      * Verifica se esiste un utente con la data email.
      */
     public boolean existsByEmail(String email) {
