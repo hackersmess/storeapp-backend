@@ -8,6 +8,7 @@ import jakarta.persistence.PersistenceContext;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 /**
  * Repository per l'accesso ai dati della tabella "users".
@@ -127,6 +128,26 @@ public class UserRepository {
         try {
             User user = em.createQuery("SELECT u FROM User u WHERE u.googleId = :googleId", User.class)
                     .setParameter("googleId", googleId)
+                    .getSingleResult();
+            return Optional.of(user);
+        } catch (NoResultException e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Trova un utente con token di reset valido (hash + scadenza futura).
+     */
+    public Optional<User> findByValidPasswordResetTokenHash(String tokenHash, LocalDateTime now) {
+        try {
+            User user = em.createQuery(
+                            "SELECT u FROM User u " +
+                                    "WHERE u.passwordResetTokenHash = :tokenHash " +
+                                    "AND u.passwordResetTokenExpiresAt IS NOT NULL " +
+                                    "AND u.passwordResetTokenExpiresAt > :now",
+                            User.class)
+                    .setParameter("tokenHash", tokenHash)
+                    .setParameter("now", now)
                     .getSingleResult();
             return Optional.of(user);
         } catch (NoResultException e) {

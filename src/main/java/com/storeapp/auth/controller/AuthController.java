@@ -5,6 +5,7 @@ import com.storeapp.auth.exception.AuthException;
 import com.storeapp.auth.exception.InvalidCredentialsException;
 import com.storeapp.auth.exception.UserAlreadyExistsException;
 import com.storeapp.auth.service.AuthService;
+import com.storeapp.auth.service.PasswordResetService;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
@@ -25,6 +26,9 @@ public class AuthController {
 
     @Inject
     AuthService authService;
+
+    @Inject
+    PasswordResetService passwordResetService;
 
     /**
      * POST /api/auth/register
@@ -136,6 +140,59 @@ public class AuthController {
                     "message", "Si è verificato un errore durante il refresh del token"
                 ))
                 .build();
+        }
+    }
+
+    /**
+     * POST /api/auth/forgot-password
+     * Richiede il reset password via email.
+     */
+    @POST
+    @Path("/forgot-password")
+    public Response forgotPassword(@Valid ForgotPasswordRequest request) {
+        try {
+            passwordResetService.requestPasswordReset(request.getEmail());
+            return Response.ok(Map.of(
+                    "message", "Se l'email esiste, riceverai un link per il reset password"
+            )).build();
+        } catch (Exception e) {
+            System.err.println("Forgot password error: " + e.getMessage());
+            e.printStackTrace();
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of(
+                            "error", "Errore del server",
+                            "message", "Si è verificato un errore durante la richiesta di reset"
+                    ))
+                    .build();
+        }
+    }
+
+    /**
+     * POST /api/auth/reset-password
+     * Imposta una nuova password usando il token ricevuto via email.
+     */
+    @POST
+    @Path("/reset-password")
+    public Response resetPassword(@Valid ResetPasswordRequest request) {
+        try {
+            passwordResetService.resetPassword(request.getToken(), request.getNewPassword());
+            return Response.ok(Map.of("message", "Password aggiornata con successo")).build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of(
+                            "error", "Token non valido",
+                            "message", e.getMessage()
+                    ))
+                    .build();
+        } catch (Exception e) {
+            System.err.println("Reset password error: " + e.getMessage());
+            e.printStackTrace();
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of(
+                            "error", "Errore del server",
+                            "message", "Si è verificato un errore durante il reset della password"
+                    ))
+                    .build();
         }
     }
 
